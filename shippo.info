@@ -1,0 +1,7 @@
+name = Shippo
+description = Fetches shipment rates and creates shipment labels.
+package = Commerce (shipping)
+core = 7.x
+
+dependencies[] = commerce
+dependencies[] = commerce_shipping
