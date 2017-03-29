@@ -31,6 +31,7 @@ function shippo_settings_form($form, &$form_state) {
     '#type' => 'textfield',
     '#title' => t('Address Line 1'),
     '#default_value' => variable_get('shippo_sender_address_line_1'),
+    '#required' => TRUE,
   );
   $form['origin']['shippo_sender_address_line_2'] = array(
     '#type' => 'textfield',
@@ -41,11 +42,13 @@ function shippo_settings_form($form, &$form_state) {
     '#type' => 'textfield',
     '#title' => t('City'),
     '#default_value' => variable_get('shippo_sender_city'),
+    '#required' => TRUE,
   );
   $form['origin']['shippo_sender_state'] = array(
     '#type' => 'select',
     '#title' => t('State'),
     '#default_value' => variable_get('shippo_sender_state'),
+    '#required' => TRUE,
     '#options' => array(
       '' => t('-- Please Select --'),
       'AL' => t('Alabama'),
@@ -106,11 +109,13 @@ function shippo_settings_form($form, &$form_state) {
     '#title' => t('Postal Code'),
     '#size' => 10,
     '#default_value' => variable_get('shippo_sender_postal_code'),
+    '#required' => TRUE,
   );
   $form['origin']['shippo_sender_country_code'] = array(
     '#type' => 'select',
     '#title' => t('Country'),
     '#default_value' => variable_get('shippo_sender_country_code'),
+    '#required' => TRUE,
     '#options' => array(
       '' => t('-- Please Select --'),
       'US' => t('United States of America'),
@@ -127,11 +132,12 @@ function shippo_settings_form($form, &$form_state) {
     '#type' => 'radios',
     '#title' => t('Shipping Service Type'),
     '#default_vlaue' => variable_get('shippo_ship_service_type'),
+    '#required' => TRUE,
     '#options' => array(
       'cheapest' => t('Cheapest'),
       'fastest' => t('Fastest'),
     ),
-    '#description' => t('Based on your choice, the cheapest or the fastest available shipping service will be used for shipping cost estimation.'),
+    '#description' => t('Based on your choice, the cheapest or the fastest available shipping service will be used for shipping cost estimation. Shipping cost may vary.'),
   );
 
   // Fields for default package size (inches).
