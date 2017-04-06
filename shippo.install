@@ -1,0 +1,63 @@
+<?php
+
+/**
+ * Implements hook_schema().
+ */
+function shippo_schema() {
+  $schema = array();
+
+  $schema['shippo_service'] = array(
+    'description' => 'Stores information about Shippo shipping services enabled for the Shippo Shipping module.',
+    'fields' => array(
+      'name' => array(
+        'description' => 'The machine-readable name of the shipping service.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'title' => array(
+        'description' => 'The human-readable title of the shipping service.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'weight' => array(
+        'description' => 'The weight assigned this shipping service when sorting lists of services.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('name'),
+  );
+
+  return $schema;
+}
+
+/**
+ * Implements hook_uninstall().
+ * Delete all Shippo module related variables as well as 'shippo_service' table.
+ */
+function shippo_uninstall() {
+
+  $fields = array(
+    'shippo_api_token',
+    'shippo_sender_address_line_1',
+    'shippo_sender_address_line_2',
+    'shippo_sender_city',
+    'shippo_sender_state',
+    'shippo_sender_postal_code',
+    'shippo_sender_country_code',
+    'shippo_default_package_size_length',
+    'shippo_default_package_size_width',
+    'shippo_default_package_size_height',
+  );
+
+  foreach ($fields as $key) {
+    variable_del($key);
+  }
+
+  drupal_uninstall_schema('shippo');
+}

@@ -4,6 +4,11 @@
  * @file
  * Handles admin settings page for Shippo module.
  */
+module_load_include('inc', 'shippo', 'shippo.helper');
+
+/**
+ * Shippo admin configuration form.
+ */
 function shippo_settings_form($form, &$form_state) {
   $goshippo_link = l(t('goShippo.com'), 'https://app.goshippo.com/api', array('attributes' => array('target' => '_blank')));
 
@@ -122,24 +127,6 @@ function shippo_settings_form($form, &$form_state) {
     ),
   );
 
-  // Shipping service type options.
-  $form['shippo_ship_services'] = array(
-    '#type' => 'fieldset',
-    '#title' => t('Shipping Service Options'),
-    '#collapsible' => TRUE,
-  );
-  $form['shippo_ship_services']['service_type'] = array(
-    '#type' => 'radios',
-    '#title' => t('Shipping Service Type'),
-    '#default_vlaue' => variable_get('shippo_ship_service_type'),
-    '#required' => TRUE,
-    '#options' => array(
-      'cheapest' => t('Cheapest'),
-      'fastest' => t('Fastest'),
-    ),
-    '#description' => t('Based on your choice, the cheapest or the fastest available shipping service will be used for shipping cost estimation. Shipping cost may vary.'),
-  );
-
   // Fields for default package size (inches).
   $form['default_package_size'] = array(
     '#type' => 'fieldset',
@@ -182,6 +169,29 @@ function shippo_settings_form($form, &$form_state) {
       <br/><br/>
       Shippo has a maximum package size similar to that of ' . l('UPS', 'http://www.ups.com/content/us/en/resources/prepare/oversize.html', array('attributes' => array('target' => '_blank'))) . '.',
   );
+
+  // Shipping service options.
+  $form['services'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Enable Shippo shipping services'),
+    '#description' => t('Please ensure that you select the services provided by only the enabled carriers on your Shippo account at www.goshippo.com.'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+    '#tree' => TRUE,
+  );
+
+  // Build an options array of all available Shippo shipping services.
+  $shipping_services = shippo_carrier_services();
+
+  foreach ($shipping_services as $optgroup => $optgroup_options) {
+    $form['services'][strtr($optgroup, ' ', '-')] = array(
+      '#type' => 'checkboxes',
+      '#title' => check_plain($optgroup),
+      '#options' => $optgroup_options,
+      '#default_value' => array_keys(shippo_load_services()),
+    );
+  }
+
   $form['actions']['submit'] = array(
     '#type' => 'submit',
     '#value' => t('Save configuration'),
@@ -225,7 +235,6 @@ function shippo_settings_form_submit($form, &$form_state) {
     'shippo_sender_state',
     'shippo_sender_postal_code',
     'shippo_sender_country_code',
-    'shippo_ship_service_type',
     'shippo_default_package_size_length',
     'shippo_default_package_size_width',
     'shippo_default_package_size_height',
@@ -237,5 +246,50 @@ function shippo_settings_form_submit($form, &$form_state) {
       variable_set($key, $value);
     }
   }
-  drupal_set_message(t('The Shippo configuration options have been saved.'));
+
+  // Load the enabled services.
+  $enabled_services = shippo_load_services();
+  $all_services = shippo_carrier_services();
+
+  // Loop over the shipping services...
+  foreach ($form_state['values']['services'] as $optgroup => $options) {
+    foreach ($options as $key => $value) {
+      // If a service was marked to be enabled and hasn't been saved yet, save
+      // it to the database now.
+      if ($key === $value && !isset($enabled_services[$key])) {
+        $service = array(
+          'name' => $key,
+          'title' => $all_services[strtr($optgroup, '-', ' ')][$key],
+        );
+
+        shippo_save_service($service);
+      }
+      // Otherwise if a service that is enabled was unchecked, delete it from
+      // the database if possible now.
+      elseif ($value == '0' && isset($enabled_services[$key])) {
+        // Check to make sure no line items are depending on this line item.
+        $query = new EntityFieldQuery();
+
+        $query
+          ->entityCondition('entity_type', 'commerce_line_item', '=')
+          ->fieldCondition('commerce_shipping_service', 'value', shippo_commerce_shipping_service_name($key), '=')
+          ->count();
+
+        // If no line items were found...
+        if ($query->execute() == 0) {
+          // Delete the record from the database.
+          shippo_delete_service($key);
+        }
+        else {
+          // Otherwise display a message indicating why it couldn't be disabled.
+          $title = check_plain($all_services[strtr($optgroup, '-', ' ')][$key]);
+          drupal_set_message(t('Could not disable the @title service, because a shipping line item exists for it.', array('@title' => $title)), 'error');
+        }
+      }
+    }
+  }
+
+  drupal_set_message(t('Shippo configuration saved.'));
+
+  $form_state['redirect'] = 'admin/commerce/config/shipping/methods';
 }

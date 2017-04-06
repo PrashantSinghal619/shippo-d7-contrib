@@ -5,6 +5,7 @@
  * Handles requests to Shippo server for Shippo module.
  */
 require_once('sites/all/libraries/shippo-php-client/lib/Shippo.php');
+module_load_include('inc', 'shippo', 'shippo.helper');
 
 /**
  * Sets the session with Shippo server through the API key.
@@ -18,7 +19,14 @@ function shippo_set_api_key() {
     return FALSE;
   }
 
-  Shippo::setApiKey($api_key);
+  // Try to establish a Session with Shippo server.
+  try {
+    Shippo::setApiKey($api_key);
+  }
+  catch (Shippo_ApiConnectionError $e) {
+    drupal_set_message(t('Unable to connect to Shippo shipment services provider. Please try again.'), 'warning', FALSE);
+    return FALSE;
+  }
 }
 
 /**
@@ -26,34 +34,34 @@ function shippo_set_api_key() {
  */
 function shippo_request_quote_rates($order) {
   $purpose = 'QUOTE';
-  // $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
-
-  // // Determine the shipping profile reference field name for the order.
-  // $field_name = commerce_physical_order_shipping_field_name($order);
-  // $shipping_profile = $order_wrapper->{$field_name}->value();
-
-  // // Prepare the shipping address for use in the request.
-  // if (!empty($order_wrapper->{$field_name}->commerce_customer_address)) {
-  //   $shipping_address = $order_wrapper->{$field_name}->commerce_customer_address->value();
-  // }
-  // else {
-  //   $shipping_address = addressfield_default_values();
-  // }
 
   // Ship To - Customer Shipping Address.
   $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
-  // Prepare the shipping address for use in the request.
-  if (!empty($order_wrapper->commerce_customer_shipping->commerce_customer_address)) {
-    $shipping_address = $order_wrapper->commerce_customer_shipping->commerce_customer_address->value();
-    $order_customer_email = $order->mail;
-    $shipto_address = get_receiver_address($purpose, $shipping_address, $order_customer_email);
 
+  // Determine the shipping profile reference field name for the order.
+  $field_name = commerce_physical_order_shipping_field_name($order);
+  $shipping_profile = $order_wrapper->{$field_name}->value();
+
+  // Prepare the shipping address for use in the request.
+  if (!empty($order_wrapper->{$field_name}->commerce_customer_address)) {
+    $shipping_address = $order_wrapper->{$field_name}->commerce_customer_address->value();
+    $shipping_address['phone'] = '';
   }
   else {
     drupal_set_message(t('No customer shipping address provided.'), 'error', FALSE);
     watchdog('shippo', 'The shipping quote rates fetch request could not be completed because no customer shipping address was provided for the order no. %order_no.', array('%order_no' => $order->order_id), WATCHDOG_ERROR);
     return FALSE;
   }
+
+  // Add the phone number if available.
+  if ($phone_field_name = commerce_physical_customer_profile_phone_number_field_name($shipping_profile)) {
+    if (!empty($order_wrapper->{$field_name}->{$phone_field_name})) {
+      $shipping_address['phone'] = $order_wrapper->{$field_name}->{$phone_field_name}->value();
+    }
+  }
+
+  $order_customer_email = $order->mail;
+  $shipto_address = get_receiver_address($purpose, $shipping_address, $order_customer_email);
 
   // Ship From - Sender Address.
   $shipfrom_address = get_sender_address($purpose);
@@ -65,9 +73,9 @@ function shippo_request_quote_rates($order) {
     return FALSE;
   }
 
-  // Fetch shipment rates.
+  // Fetch shipment rates for the selected services.
   // @todo Handle customs for international shipments.
-  $shipment_quote_rate_response = retrieve_shipment_rates($purpose, $shipfrom_address, $shipto_address, $parcel_array, $customs = NULL);
+  $shipping_quote_rate_response = retrieve_shipment_rates($purpose, $shipfrom_address, $shipto_address, $parcel_array, $customs = NULL);
 
   if (empty((array) $shipping_quote_rate_response)) {
     drupal_set_message(t('Either you have entered incorrect/incomplete shipping address or there are no carriers available that ship to your address.'), 'error', FALSE);
@@ -207,33 +215,18 @@ function retrieve_shipment_rates($purpose, $fromAddress, $toAddress, $parcel, $c
   $shipment = Shippo_Shipment::create($shipment_input_info);
 
   $rates = $shipment["rates_list"];
-  $selected_rate = new stdClass();
-  $rate_amount = 100000.00;
+  $selected_rates = array();
 
-  $service_type = variable_get('shippo_ship_service_type');
+  foreach ($rates as $rate) {
+    $decoded_rate = json_decode($rate);
 
-  foreach($rates as $rate) {
-    $rate = json_decode($rate);
-
-    // Select the cheapest or the fastest shipping rate based on shippo module's
-    // configuration.
-    if (!empty($rate->attributes)) {
-
-      if ($service_type === 'cheapest') {
-
-        if (in_array('CHEAPEST', $rate->attributes)) {
-          $selected_rate = $rate;
-        }
-      }
-      // If the service type choice is not 'cheapest', then it is 'fastest'.
-      else {
-
-        if (in_array('FASTEST', $rate->attributes)) {
-          $selected_rate = $rate;
-        }
+    // Store selected services' rates.
+    foreach (shippo_load_services() as $key => $value) {
+      if ($key == $decoded_rate->servicelevel_token) {
+        $selected_rates[] = $decoded_rate;
       }
     }
   }
 
-  return $selected_rate;
+  return $selected_rates;
 }

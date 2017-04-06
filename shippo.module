@@ -4,6 +4,8 @@
  * @file
  * Handles main functionality for Shippo module.
  */
+module_load_include('inc', 'shippo', 'includes/shippo.helper');
+module_load_include('inc', 'shippo', 'includes/shippo.request');
 
 /**
  * Implements hook_menu().
@@ -34,4 +36,76 @@ function shippo_commerce_shipping_method_info() {
   );
 
   return $shipping_methods;
+}
+
+/**
+ * Implements hook_commerce_shipping_service_info().
+ */
+function shippo_commerce_shipping_service_info() {
+  $shipping_services = array();
+  $service_names = shippo_carrier_service_names();
+
+  foreach (shippo_load_services() as $name => $service) {
+    $shipping_services[shippo_commerce_shipping_service_name($name)] = array(
+      'title' => t('Shippo @title', array('@title' => $service['title'])),
+      'display_title' => check_plain($service['title']),
+      'shipping_method' => 'shippo',
+      'price_component' => 'shipping',
+      'weight' => $service['weight'],
+      'callbacks' => array(
+        'rate' => 'shippo_service_rate_order',
+      ),
+    );
+  }
+
+  return $shipping_services;
+}
+
+/**
+ * Shipping service callback: returns Shippo calculated shipping rates for
+ * a given order.
+ */
+function shippo_service_rate_order($shipping_service, $order) {
+  // First attempt to recover cached shipping rates for the current order.
+  $rates = commerce_shipping_rates_cache_get('shippo', $order, variable_get('shippo_rates_timeout', 60));
+
+  // If no rates were recovered from the cache.
+  if (!$rates) {
+    $rates = array();
+
+    // Start the session with Shippo server.
+    $shippo_session = shippo_set_api_key();
+
+    if (!$shippo_session) {
+      return FALSE;
+    }
+
+    // Fetch rates for the current order.
+    $response_rates = shippo_request_quote_rates($order);
+
+    if (!empty($response_rates)) {
+      // Parse the response to cache all requested rates for the current order.
+      foreach ($response_rates as $rate) {
+
+        if ($rate->available_shippo) {
+          $service_name = shippo_commerce_shipping_service_name($rate->servicelevel_token);
+          $decimal_amount = (float) $rate->amount_local;
+          $currency_code = $rate->currency_local;
+
+          // Add an item to the rates array for the current service.
+          $rates[$service_name] = array(
+            'amount' => commerce_currency_decimal_to_amount($decimal_amount, $currency_code),
+            'currency_code' => $currency_code,
+            'data' => array(),
+          );
+        }
+      }
+    }
+
+    // Cache the calculated rates for subsequent requests.
+    commerce_shipping_rates_cache_set('shippo', $order, $rates);
+  }
+
+  // Return the rate for the requested service or FALSE if not found.
+  return isset($rates[$shipping_service['name']]) ? $rates[$shipping_service['name']] : FALSE;
 }
