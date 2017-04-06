@@ -4,7 +4,7 @@
  * @file
  * Handles requests to Shippo server for Shippo module.
  */
-require_once('sites/all/libraries/shippo-php-client/lib/Shippo.php');
+require_once(libraries_get_path('shippo-php-client') . '/lib/Shippo.php');
 module_load_include('inc', 'shippo', 'shippo.helper');
 
 /**
