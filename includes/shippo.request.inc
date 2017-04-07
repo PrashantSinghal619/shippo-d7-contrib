@@ -24,7 +24,8 @@ function shippo_set_api_key() {
     Shippo::setApiKey($api_key);
   }
   catch (Shippo_ApiConnectionError $e) {
-    drupal_set_message(t('Unable to connect to Shippo shipment services provider. Please try again.'), 'warning', FALSE);
+    drupal_set_message(t('Unable to connect to Shippo shipment services provider. Please try again.'), 'error', FALSE);
+    watchdog('shippo', 'API connection error: Unable to connect to Shippo shipment services provider.', array(), WATCHDOG_ERROR);
     return FALSE;
   }
 }
@@ -123,7 +124,7 @@ function get_receiver_address($purpose, $customer_shipping_address, $customer_em
     'state' => $customer_shipping_address['administrative_area'],
     'zip' => $customer_shipping_address['postal_code'],
     'country' => $customer_shipping_address['country'],
-    'phone' => $customer_shipping_address['phone_number'],
+    'phone' => $customer_shipping_address['phone'],
     'email' => $customer_email,
   );
 
@@ -161,7 +162,7 @@ function get_parcel_info($order) {
 
   $package_count = ceil($volume['volume'] / $default_package_volume);
 
-  $per_package_weight = $weight / $package_count;
+  $per_package_weight = $weight['weight'] / $package_count;
 
   // Based on package count, declare the parcels.
   for ($i=0; $i < $package_count; $i++) {

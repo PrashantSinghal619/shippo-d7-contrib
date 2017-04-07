@@ -76,7 +76,7 @@ function shippo_service_rate_order($shipping_service, $order) {
     // Start the session with Shippo server.
     $shippo_session = shippo_set_api_key();
 
-    if (!$shippo_session) {
+    if ($shippo_session === FALSE) {
       return FALSE;
     }
 
