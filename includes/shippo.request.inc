@@ -74,9 +74,36 @@ function shippo_request_quote_rates($order) {
     return FALSE;
   }
 
+    // Handle customs declarations for international shipments.
+  if ($shipfrom_address['country'] != $shipto_address['country']) {
+    $customs_items = array();
+    $customs_items = get_customs_info($order);
+
+    // Handling Shippo API connectivity error.
+    try {
+      $customs_declaration = Shippo_CustomsDeclaration::create(
+        array(
+          'contents_type' => variable_get('shippo_customs_contents_type'),
+          'contents_explanation' => variable_get('shippo_customs_content_explain'),
+          'non_delivery_option' => 'RETURN',
+          'certify' => 'true',
+          'certify_signer' => $shipfrom_address['name'],
+          'items' => $customs_items,
+        )
+      );
+    }
+    catch (Shippo_ApiConnectionError $e) {
+      drupal_set_message(t('Unable to connect to Shippo shipment services provider. Please try again.'), 'error', FALSE);
+      return FALSE;
+    }
+
+  }
+  else {
+    $customs_declaration = new stdClass();
+  }
+
   // Fetch shipment rates for the selected services.
-  // @todo Handle customs for international shipments.
-  $shipping_quote_rate_response = retrieve_shipment_rates($purpose, $shipfrom_address, $shipto_address, $parcel_array, $customs = NULL);
+  $shipping_quote_rate_response = retrieve_shipment_rates($purpose, $shipfrom_address, $shipto_address, $parcel_array, $customs_declaration);
 
   if (empty((array) $shipping_quote_rate_response)) {
     drupal_set_message(t('Either you have entered incorrect/incomplete shipping address or there are no carriers available that ship to your address.'), 'error', FALSE);
@@ -177,6 +204,36 @@ function get_parcel_info($order) {
   }
 
   return $parcels;
+}
+
+function get_customs_info($order) {
+  $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
+
+  foreach ($order_wrapper->commerce_line_items as $delta => $line_item_wrapper) {
+    $line_item_quantity = $line_item_weight = $net_weight = 0;
+
+    if (in_array($line_item_wrapper->type->value(), array('product', 'product_discount'))) {
+      $product_id = $line_item_wrapper->commerce_product->raw();
+      $line_item_quantity = $line_item_wrapper->quantity->value();
+      $line_item_weight = $line_item_wrapper->commerce_product->field_product_weight->weight->value();
+      $net_weight = round($line_item_weight * $line_item_quantity, 2);
+      $product = commerce_product_load($product_id);
+      $product_amount = $product->commerce_price[LANGUAGE_NONE][0]['amount'];
+      $product_currency_code = $product->commerce_price[LANGUAGE_NONE][0]['currency_code'];
+      $product_formatted_amount = (float) str_replace(',', '', substr(commerce_currency_format($product_amount, $product_currency_code), 1));
+      $customs_items[] = array(
+        'description' => $product->title,
+        'quantity' => (int) $line_item_quantity,
+        'net_weight' => $net_weight,
+        'mass_unit' => $product->field_product_weight[LANGUAGE_NONE][0]['unit'],
+        'value_amount' => $product_formatted_amount * $line_item_quantity,
+        'value_currency' => $product_currency_code,
+        'origin_country' => variable_get('shippo_sender_country_code', 'US'),
+      );
+    }
+  }
+
+  return $customs_items;
 }
 
 /**

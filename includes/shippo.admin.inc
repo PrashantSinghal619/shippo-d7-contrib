@@ -50,64 +50,15 @@ function shippo_settings_form($form, &$form_state) {
     '#required' => TRUE,
   );
   $form['origin']['shippo_sender_state'] = array(
-    '#type' => 'select',
+    '#type' => 'textfield',
     '#title' => t('State'),
+    '#description' => t('State is mandatory for US and CA only. Please use two character abbreviation provided <a href="@url" target="_blank">here</a>.', array('@url' => url('http://www.advertserve.com/docs/2.0/html/manual/api_reference_state.html'))),
+    '#size' => 10,
+    '#maxlength' => 2,
     '#default_value' => variable_get('shippo_sender_state'),
-    '#required' => TRUE,
-    '#options' => array(
-      '' => t('-- Please Select --'),
-      'AL' => t('Alabama'),
-      'AK' => t('Alaska'),
-      'AZ' => t('Arizona'),
-      'AR' => t('Arkansas'),
-      'CA' => t('California'),
-      'CO' => t('Colorado'),
-      'CT' => t('Connecticut'),
-      'DE' => t('Delaware'),
-      'DC' => t('District of Columbia'),
-      'FL' => t('Florida'),
-      'GA' => t('Georgia'),
-      'HI' => t('Hawaii'),
-      'ID' => t('Idaho'),
-      'IL' => t('Illinois'),
-      'IN' => t('Indiana'),
-      'IA' => t('Iowa'),
-      'KS' => t('Kansas'),
-      'KY' => t('Kentucky'),
-      'LA' => t('Louisiana'),
-      'ME' => t('Maine'),
-      'MD' => t('Maryland'),
-      'MA' => t('Massachusetts'),
-      'MI' => t('Michigan'),
-      'MN' => t('Minnesota'),
-      'MS' => t('Mississippi'),
-      'MO' => t('Missouri'),
-      'MY' => t('Montana'),
-      'NE' => t('Nebraska'),
-      'NV' => t('Nevada'),
-      'NH' => t('New Hampshire'),
-      'NJ' => t('New Jersey'),
-      'NM' => t('New Mexico'),
-      'NY' => t('New York'),
-      'NC' => t('North Carolina'),
-      'ND' => t('North Dakota'),
-      'OH' => t('Ohio'),
-      'OK' => t('Oklahoma'),
-      'OR' => t('Oregon'),
-      'PA' => t('Pennsylvania'),
-      'RI' => t('Rhode Island'),
-      'SC' => t('South Carolina'),
-      'SD' => t('South Dakota'),
-      'TN' => t('Tennessee'),
-      'TX' => t('Texas'),
-      'UT' => t('Utah'),
-      'VT' => t('Vermont'),
-      'VA' => t('Virginia'),
-      'WA' => t('Washington'),
-      'WV' => t('West Virginia'),
-      'WI' => t('Wisconsin'),
-      'WY' => t('Wyoming'),
-    ),
+    '#required' => variable_get('shippo_sender_state_require', TRUE),
+    '#prefix' => '<div id="sender-address-placeholder">',
+    '#suffix' => '</div>',
   );
   $form['origin']['shippo_sender_postal_code'] = array(
     '#type' => 'textfield',
@@ -116,15 +67,63 @@ function shippo_settings_form($form, &$form_state) {
     '#default_value' => variable_get('shippo_sender_postal_code'),
     '#required' => TRUE,
   );
+
+  // Get countries list from Drupal core's locale.inc using country_get_list().
+  include_once DRUPAL_ROOT . '/includes/locale.inc';
   $form['origin']['shippo_sender_country_code'] = array(
     '#type' => 'select',
     '#title' => t('Country'),
     '#default_value' => variable_get('shippo_sender_country_code'),
     '#required' => TRUE,
-    '#options' => array(
-      '' => t('-- Please Select --'),
-      'US' => t('United States of America'),
+    '#options' => country_get_list(),
+    '#ajax' => array(
+      'callback' => 'shippo_config_form_ajax_callback',
+      'wrapper' => 'sender-address-placeholder',
+      'method' => 'replace',
+      'effect' => 'fade',
     ),
+  );
+
+  // Make the State field 'required' based on the Country field.
+  if (isset($form_state['values']['shippo_sender_country_code'])) {
+
+    if (in_array($form_state['values']['shippo_sender_country_code'], array('US', 'CA'))) {
+      $form['origin']['shippo_sender_state']['#required'] = TRUE;
+    }
+    else {
+      $form['origin']['shippo_sender_state']['#required'] = FALSE;
+    }
+
+    variable_set('shippo_sender_state_require', $form['origin']['shippo_sender_state']['#required']);
+  }
+
+  // Fields for customs info for international shipments.
+  $form['customs_info'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('International Customs Info'),
+    '#collapsible' => TRUE,
+    '#description' => t('Customs information must be declared for international shipments.'),
+  );
+  $form['customs_info']['shippo_customs_contents_type'] = array(
+    '#type' => 'select',
+    '#title' => t('Type of goods/content to ship'),
+    '#required' => TRUE,
+    '#default_value' => variable_get('shippo_customs_contents_type', 'MERCHANDISE'),
+    '#options' => array(
+      'DOCUMENTS' => t('Documents'),
+      'GIFT' => t('Gift'),
+      'SAMPLE' => t('Sample'),
+      'MERCHANDISE' => t('Merchandise'),
+      'RETURN_MERCHANDISE' => t('Return merchandise'),
+      'HUMANITARIAN_DONATION' => t('Humanitarian Donation'),
+      'OTHER' => t('Other'),
+    ),
+  );
+  $form['customs_info']['shippo_customs_content_explain'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Content explanation'),
+    '#required' => TRUE,
+    '#default_value' => variable_get('shippo_customs_content_explain'),
   );
 
   // Fields for default package size (inches).
@@ -199,11 +198,23 @@ function shippo_settings_form($form, &$form_state) {
   return $form;
 }
 
+/**
+ * Shippo configuration form AJAX callback.
+ */
+function shippo_config_form_ajax_callback($form, $form_state) {
+  return $form['origin']['shippo_sender_state'];
+}
+
 /*
  * Implements hook_form_validate().
  */
 function shippo_settings_form_validate($form, &$form_state) {
   $values = $form_state['values'];
+
+  // Allow only alphabet letters in Sender From Address' State field.
+  if (isset($values['shippo_sender_state']) && !ctype_alpha($values['shippo_sender_state'])) {
+    form_set_error('origin][shippo_sender_state', t('Only alphabet characters allowed for State field under Ship From Address.'));
+  }
 
   // Ensure the default package size is less than the maximum permissible size.
   //  Length (longest side) <= 108 inches
@@ -233,8 +244,11 @@ function shippo_settings_form_submit($form, &$form_state) {
     'shippo_sender_address_line_2',
     'shippo_sender_city',
     'shippo_sender_state',
+    'shippo_sender_state_require',
     'shippo_sender_postal_code',
     'shippo_sender_country_code',
+    'shippo_customs_contents_type',
+    'shippo_customs_content_explain',
     'shippo_default_package_size_length',
     'shippo_default_package_size_width',
     'shippo_default_package_size_height',
