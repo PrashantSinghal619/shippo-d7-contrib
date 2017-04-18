@@ -50,6 +50,7 @@ function shippo_uninstall() {
     'shippo_sender_state',
     'shippo_sender_state_require',
     'shippo_sender_postal_code',
+    'shippo_sender_phone',
     'shippo_sender_country_code',
     'shippo_customs_contents_type',
     'shippo_customs_content_explain',

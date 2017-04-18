@@ -54,7 +54,9 @@ function shippo_request_quote_rates($order) {
     return FALSE;
   }
 
-  // Add the phone number if available.
+  // Add the phone number if available. Since we have made the phone field
+  // required, it's unnecessary to handle errors related to missing phone
+  // number.
   if ($phone_field_name = commerce_physical_customer_profile_phone_number_field_name($shipping_profile)) {
     if (!empty($order_wrapper->{$field_name}->{$phone_field_name})) {
       $shipping_address['phone'] = $order_wrapper->{$field_name}->{$phone_field_name}->value();
@@ -74,7 +76,7 @@ function shippo_request_quote_rates($order) {
     return FALSE;
   }
 
-    // Handle customs declarations for international shipments.
+  // Handle customs declarations for international shipments.
   if ($shipfrom_address['country'] != $shipto_address['country']) {
     $customs_items = array();
     $customs_items = get_customs_info($order);
@@ -94,6 +96,7 @@ function shippo_request_quote_rates($order) {
     }
     catch (Shippo_ApiConnectionError $e) {
       drupal_set_message(t('Unable to connect to Shippo shipment services provider. Please try again.'), 'error', FALSE);
+      watchdog('shippo', t('Unable to connect to Shippo while attempting to create Shippo Customs Declaration Object.'), array(), WATCHDOG_ERROR);
       return FALSE;
     }
 
@@ -108,6 +111,9 @@ function shippo_request_quote_rates($order) {
   if (empty((array) $shipping_quote_rate_response)) {
     drupal_set_message(t('Either you have entered incorrect/incomplete shipping address or there are no carriers available that ship to your address.'), 'error', FALSE);
     watchdog('shippo', t('Either shipping address validation failed or none of the available carriers ship to the provided customer address.'), array(), WATCHDOG_ERROR);
+    return FALSE;
+  }
+  if (!$shipping_quote_rate_response) {
     return FALSE;
   }
 
@@ -129,7 +135,7 @@ function get_sender_address($purpose) {
     'state' => variable_get('shippo_sender_state'),
     'zip' => variable_get('shippo_sender_postal_code'),
     'country' => variable_get('shippo_sender_country_code', 'US'),
-    'phone' => '',  // @todo Phone number input required for international shipments.
+    'phone' => variable_get('shippo_sender_phone'),
     'email' => variable_get('site_mail'),
   );
 
@@ -206,6 +212,9 @@ function get_parcel_info($order) {
   return $parcels;
 }
 
+/**
+ * Helper function to return an array storing info about customs items.
+ */
 function get_customs_info($order) {
   $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
 
@@ -269,8 +278,15 @@ function retrieve_shipment_rates($purpose, $fromAddress, $toAddress, $parcel, $c
     $shipment_input_info['customs_declaration'] = $customs->object_id;
   }
 
-  // Retrieve shipment object from Shippo.
-  $shipment = Shippo_Shipment::create($shipment_input_info);
+  try {
+    // Retrieve shipment object from Shippo.
+    $shipment = Shippo_Shipment::create($shipment_input_info);
+  }
+  catch (Shippo_ApiConnectionError $e) {
+    drupal_set_message(t('Unable to connect to Shippo shipment services provider. Please try again.'), 'error', FALSE);
+    watchdog('shippo', 'API connection error: Unable to connect to Shippo shipment services provider.', array(), WATCHDOG_ERROR);
+    return FALSE;
+  }
 
   $rates = $shipment["rates_list"];
   $selected_rates = array();

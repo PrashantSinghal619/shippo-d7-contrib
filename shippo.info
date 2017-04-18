@@ -7,3 +7,4 @@ dependencies[] = commerce
 dependencies[] = commerce_shipping
 dependencies[] = commerce_physical
 dependencies[] = libraries
+dependencies[] = addressfield_phone (7.x-1.x-dev)

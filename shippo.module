@@ -109,3 +109,23 @@ function shippo_service_rate_order($shipping_service, $order) {
   // Return the rate for the requested service or FALSE if not found.
   return isset($rates[$shipping_service['name']]) ? $rates[$shipping_service['name']] : FALSE;
 }
+
+/**
+ * Implements hook_form_commerce_checkout_form_checkout_alter.
+ * Alter the Shipping information customer profile form to require the phone
+ * field in order to avoid shipment handling problems (especially in case of
+ * international shipments).
+ */
+function shippo_form_commerce_checkout_form_checkout_alter(&$form, &$form_state) {
+
+  if ($customer_phone_container = $form['customer_profile_shipping']['commerce_customer_address'][LANGUAGE_NONE][0]['phone_block']) {
+
+    if (array_key_exists('phone_number', $customer_phone_container)) {
+      $form['customer_profile_shipping']['commerce_customer_address'][LANGUAGE_NONE][0]['phone_block']['phone_number']['phone_number']['#required'] = TRUE;
+    }
+    if (array_key_exists('mobile_number', $customer_phone_container)) {
+      $form['customer_profile_shipping']['commerce_customer_address'][LANGUAGE_NONE][0]['phone_block']['mobile_number']['#required'] = TRUE;
+    }
+
+  }
+}

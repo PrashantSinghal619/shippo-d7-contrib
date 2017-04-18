@@ -67,6 +67,12 @@ function shippo_settings_form($form, &$form_state) {
     '#default_value' => variable_get('shippo_sender_postal_code'),
     '#required' => TRUE,
   );
+  $form['origin']['shippo_sender_phone'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Phone Number'),
+    '#default_value' => variable_get('shippo_sender_phone'),
+    '#required' => TRUE,
+  );
 
   // Get countries list from Drupal core's locale.inc using country_get_list().
   include_once DRUPAL_ROOT . '/includes/locale.inc';
@@ -246,6 +252,7 @@ function shippo_settings_form_submit($form, &$form_state) {
     'shippo_sender_state',
     'shippo_sender_state_require',
     'shippo_sender_postal_code',
+    'shippo_sender_phone',
     'shippo_sender_country_code',
     'shippo_customs_contents_type',
     'shippo_customs_content_explain',
