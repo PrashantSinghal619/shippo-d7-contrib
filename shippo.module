@@ -111,10 +111,10 @@ function shippo_service_rate_order($shipping_service, $order) {
 }
 
 /**
- * Implements hook_form_commerce_checkout_form_checkout_alter.
- * Alter the Shipping information customer profile form to require the phone
- * field in order to avoid shipment handling problems (especially in case of
- * international shipments).
+ * Implements hook_form_FORM_ID_alter.
+ * Alter the Shipping information customer profile section of the checkout
+ * form to require the phone field in order to avoid shipment handling problems
+ * (especially in case of international shipments).
  */
 function shippo_form_commerce_checkout_form_checkout_alter(&$form, &$form_state) {
 
@@ -128,4 +128,98 @@ function shippo_form_commerce_checkout_form_checkout_alter(&$form, &$form_state)
     }
 
   }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter.
+ */
+function shippo_form_commerce_checkout_form_review_alter(&$form, &$form_state) {
+  $form['buttons']['continue']['#validate'][] = 'shippo_commerce_checkout_review_validate';
+}
+
+/**
+ * Validation handler for Checkout review form.
+ * The selected shipment rate will be purchased over here so that in case of any
+ * errors, the checkout can be interrupted and checkout form won't be submitted.
+ */
+function shippo_commerce_checkout_review_validate($form, &$form_state) {
+  $order = commerce_order_load($form_state['order']->order_id);
+
+  // Start the session with Shippo server.
+  $shippo_session = shippo_set_api_key();
+
+  if ($shippo_session === FALSE) {
+    form_set_error('', t('Unable to proceed.'));
+  }
+
+  // Purchase the selected shipping rate.
+  $shipment_purchase = shippo_purchase_shipping_rate($order);
+
+  if ($shipment_purchase === FALSE) {
+    form_set_error('', t('Unable to proceed.'));
+  }
+}
+
+/**
+ * Retrieve shipment's master (first) parcel's info. In single-piece shipments,
+ * the only parcel is the master parcel.
+ * @param $order
+ *   The order in context.
+ * @param $property
+ *   (optional) The type of shipment info to be retrieved. Possible values:
+ *   - master_tracking_number: Master parcel tracking number.
+ *   - master_tracking_url: Link to master parcel's tracking.
+ *   - master_label_url: Link to master parcel's shipment label (pdf format).
+ *   - commercial_invoice_url: Link to shipment's commercial invoice
+ *     usually available in case of international shipments (pdf format).
+ */
+function shippo_retrieve_shipment_master_parcel_info($order, $property = NULL) {
+  $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
+
+  foreach ($order_wrapper->commerce_line_items as $delta => $line_item_wrapper) {
+
+    if ($line_item_wrapper->type->value() == 'shipping') {
+      $shipping_line_item = commerce_line_item_load($line_item_wrapper->line_item_id->value());
+    }
+
+  }
+
+  if (isset($property) && array_key_exists($property, $shipping_line_item->data['shipment_details'])) {
+    return $shipping_line_item->data['shipment_details'][$property];
+  }
+  else {
+    return $shipping_line_item->data['shipment_details'];
+  }
+
+}
+
+/**
+ * Retrieve shipment's slave (all other than master) parcel(s) info.
+ * In single-piece shipments, the only parcel is the master parcel.
+ * @param $order
+ *   The order in context.
+ * @param $property
+ *   (optional) The type of shipment info to be retrieved. Possible values:
+ *   - slave_tracking_numbers: Slave parcel tracking number.
+ *   - slave_tracking_urls: Link to slave parcel's tracking.
+ *   - slave_label_urls: Link to slave parcel's shipment label (pdf format).
+ */
+function shippo_retrieve_shipment_slave_parcel_info($order, $property = NULL) {
+  $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
+
+  foreach ($order_wrapper->commerce_line_items as $delta => $line_item_wrapper) {
+
+    if ($line_item_wrapper->type->value() == 'shipping') {
+      $shipping_line_item = commerce_line_item_load($line_item_wrapper->line_item_id->value());
+    }
+
+  }
+
+  if (isset($property) && array_key_exists($property, $shipping_line_item->data['shipment_details'])) {
+    return $shipping_line_item->data['shipment_details'][$property];
+  }
+  else {
+    return $shipping_line_item->data['shipment_details'];
+  }
+
 }

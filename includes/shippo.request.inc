@@ -37,6 +37,146 @@ function shippo_request_quote_rates($order) {
   $purpose = 'QUOTE';
 
   // Ship To - Customer Shipping Address.
+  $shipping_address = shippo_prepare_shipping_address($order);
+
+  if (!$shipping_address) {
+    return FALSE;
+  }
+
+  $order_customer_email = $order->mail;
+  $shipto_address = get_receiver_address($purpose, $shipping_address, $order_customer_email);
+
+  // Ship From - Sender Address.
+  $shipfrom_address = get_sender_address($purpose);
+
+  $parcel_array = shippo_get_parcel_info($order);
+  if (!$parcel_array) {
+    drupal_set_message(t('The number of packages could not be computed.'), 'error', FALSE);
+    watchdog('shippo', t('The number of packages could not be computed.'), array(), WATCHDOG_ERROR);
+    return FALSE;
+  }
+
+  // Handle customs declarations for international shipments.
+  if ($shipfrom_address['country'] != $shipto_address['country']) {
+    $customs_declaration = shippo_declare_customs($shipfrom_address, $order);
+
+    if (!$customs_declaration) {
+      return FALSE;
+    }
+
+  }
+  else {
+    $customs_declaration = new stdClass();
+  }
+
+  // Fetch shipment rates for the selected services.
+  $shipping_quote_rate_response = retrieve_shipment_rates($purpose, $shipfrom_address, $shipto_address, $parcel_array, $customs_declaration);
+
+  if (empty((array) $shipping_quote_rate_response)) {
+    drupal_set_message(t('Either you have entered incorrect/incomplete shipping address or there are no carriers available that ship to your address.'), 'error', FALSE);
+    watchdog('shippo', t('Either shipping address validation failed or none of the available carriers ship to the provided customer address.'), array(), WATCHDOG_ERROR);
+    return FALSE;
+  }
+  if (!$shipping_quote_rate_response) {
+    return FALSE;
+  }
+
+  return $shipping_quote_rate_response;
+}
+
+/**
+ * Purchase a shipping rate thus returning shipping label(s) and
+ * tracking info for the shipment.
+ */
+function shippo_purchase_shipping_rate($order) {
+  $purpose = 'PURCHASE';
+  $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
+
+  foreach ($order_wrapper->commerce_line_items as $delta => $line_item_wrapper) {
+
+    if ($line_item_wrapper->type->value() == 'shipping') {
+      $service = shippo_carrier_service_key($line_item_wrapper->commerce_shipping_service->value());
+    }
+
+  }
+
+  // Ship To - Customer Shipping Address.
+  $shipping_address = shippo_prepare_shipping_address($order);
+
+  if (!$shipping_address) {
+    return FALSE;
+  }
+
+  $order_customer_email = $order->mail;
+  $shipto_address = get_receiver_address($purpose, $shipping_address, $order_customer_email);
+
+  // Ship From - Sender Address.
+  $shipfrom_address = get_sender_address($purpose);
+
+  $parcel_array = shippo_get_parcel_info($order);
+  if (!$parcel_array) {
+    drupal_set_message(t('The number of packages could not be computed.'), 'error', FALSE);
+    watchdog('shippo', t('The number of packages could not be computed.'), array(), WATCHDOG_ERROR);
+    return FALSE;
+  }
+
+  // Handle customs declarations for international shipments.
+  if ($shipfrom_address['country'] != $shipto_address['country']) {
+    $customs_declaration = shippo_declare_customs($shipfrom_address, $order);
+
+    if (!$customs_declaration) {
+      return FALSE;
+    }
+
+  }
+  else {
+    $customs_declaration = new stdClass();
+  }
+
+  // Fetch available shipment purchase rates.
+  $shipping_purchase_rate_response = retrieve_shipment_rates($purpose, $shipfrom_address, $shipto_address, $parcel_array, $customs_declaration);
+
+  if (empty((array) $shipping_purchase_rate_response)) {
+    drupal_set_message(t('Either you have entered incorrect/incomplete shipping address or there are no carriers available that ship to your address.'), 'error', FALSE);
+    watchdog('shippo', t('Either shipping address validation failed or none of the available carriers ship to the provided customer address.'), array(), WATCHDOG_ERROR);
+    return FALSE;
+  }
+  if (!$shipping_purchase_rate_response) {
+    return FALSE;
+  }
+
+  foreach ($shipping_purchase_rate_response as $rate_object) {
+
+    if (isset($service) && $rate_object->servicelevel_token == $service) {
+      $rate_object_id = $rate_object->object_id;
+      // Purchase the selected rate.
+      $transaction = shippo_create_shipment_transaction($rate_object_id);
+      // Retrieve info about the purchased shipment rate.
+      $purchase_shipment_data = shippo_get_post_purchase_shipping_info($transaction, sizeof($parcel_array), $rate_object_id);
+    }
+
+  }
+
+  foreach ($order_wrapper->commerce_line_items as $delta => $line_item_wrapper) {
+
+    if ($line_item_wrapper->type->value() == 'shipping') {
+      $shipping_line_item = commerce_line_item_load($line_item_wrapper->line_item_id->value());
+    }
+
+  }
+
+  if (isset($shipping_line_item) && isset($purchase_shipment_data)) {
+    // Store post purchase shipment info into shipping line item data.
+    $shipping_line_item->data['shipment_details'] = $purchase_shipment_data;
+    entity_save('commerce_line_item', $shipping_line_item);
+  }
+
+}
+
+/**
+ * Prepare customer shipping address info.
+ */
+function shippo_prepare_shipping_address($order) {
   $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
 
   // Determine the shipping profile reference field name for the order.
@@ -63,61 +203,7 @@ function shippo_request_quote_rates($order) {
     }
   }
 
-  $order_customer_email = $order->mail;
-  $shipto_address = get_receiver_address($purpose, $shipping_address, $order_customer_email);
-
-  // Ship From - Sender Address.
-  $shipfrom_address = get_sender_address($purpose);
-
-  $parcel_array = get_parcel_info($order);
-  if (!$parcel_array) {
-    drupal_set_message(t('The number of packages could not be computed.'), 'warning', FALSE);
-    watchdog('shippo', t('The number of packages could not be computed.'), array(), WATCHDOG_WARNING);
-    return FALSE;
-  }
-
-  // Handle customs declarations for international shipments.
-  if ($shipfrom_address['country'] != $shipto_address['country']) {
-    $customs_items = array();
-    $customs_items = get_customs_info($order);
-
-    // Handling Shippo API connectivity error.
-    try {
-      $customs_declaration = Shippo_CustomsDeclaration::create(
-        array(
-          'contents_type' => variable_get('shippo_customs_contents_type'),
-          'contents_explanation' => variable_get('shippo_customs_content_explain'),
-          'non_delivery_option' => 'RETURN',
-          'certify' => 'true',
-          'certify_signer' => $shipfrom_address['name'],
-          'items' => $customs_items,
-        )
-      );
-    }
-    catch (Shippo_ApiConnectionError $e) {
-      drupal_set_message(t('Unable to connect to Shippo shipment services provider. Please try again.'), 'error', FALSE);
-      watchdog('shippo', t('Unable to connect to Shippo while attempting to create Shippo Customs Declaration Object.'), array(), WATCHDOG_ERROR);
-      return FALSE;
-    }
-
-  }
-  else {
-    $customs_declaration = new stdClass();
-  }
-
-  // Fetch shipment rates for the selected services.
-  $shipping_quote_rate_response = retrieve_shipment_rates($purpose, $shipfrom_address, $shipto_address, $parcel_array, $customs_declaration);
-
-  if (empty((array) $shipping_quote_rate_response)) {
-    drupal_set_message(t('Either you have entered incorrect/incomplete shipping address or there are no carriers available that ship to your address.'), 'error', FALSE);
-    watchdog('shippo', t('Either shipping address validation failed or none of the available carriers ship to the provided customer address.'), array(), WATCHDOG_ERROR);
-    return FALSE;
-  }
-  if (!$shipping_quote_rate_response) {
-    return FALSE;
-  }
-
-  return $shipping_quote_rate_response;
+  return $shipping_address;
 }
 
 /**
@@ -167,7 +253,7 @@ function get_receiver_address($purpose, $customer_shipping_address, $customer_em
 /**
  * Helper function to return an array storing info about parcels.
  */
-function get_parcel_info($order) {
+function shippo_get_parcel_info($order) {
   // This returns $weight['unit'] and $weight['weight'].
   $weight = commerce_physical_order_weight($order, 'lb');
   // This returns $volume['unit'] and $weight['volume'].
@@ -215,7 +301,7 @@ function get_parcel_info($order) {
 /**
  * Helper function to return an array storing info about customs items.
  */
-function get_customs_info($order) {
+function shippo_get_customs_info($order) {
   $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
 
   foreach ($order_wrapper->commerce_line_items as $delta => $line_item_wrapper) {
@@ -243,6 +329,157 @@ function get_customs_info($order) {
   }
 
   return $customs_items;
+}
+
+/**
+ * Customs declaration for international shipments.
+ */
+function shippo_declare_customs($shipfrom_address, $order) {
+  $customs_items = array();
+  $customs_items = shippo_get_customs_info($order);
+
+  // Handling Shippo API connectivity error while attempting to declare customs
+  // information.
+  try {
+    $customs_declaration = Shippo_CustomsDeclaration::create(
+      array(
+        'contents_type' => variable_get('shippo_customs_contents_type'),
+        'contents_explanation' => variable_get('shippo_customs_content_explain'),
+        'non_delivery_option' => 'RETURN',
+        'certify' => 'true',
+        'certify_signer' => $shipfrom_address['name'],
+        'items' => $customs_items,
+      )
+    );
+  }
+  catch (Shippo_ApiConnectionError $e) {
+    drupal_set_message(t('Unable to connect to Shippo shipment services provider. Please try again.'), 'error', FALSE);
+    watchdog('shippo', t('Unable to connect to Shippo while attempting to create Shippo Customs Declaration Object.'), array(), WATCHDOG_ERROR);
+    return FALSE;
+  }
+
+  return $customs_declaration;
+}
+
+/**
+ * Helper function to create Shippo transaction object to purchase a shipment
+ * rate.
+ * @param $rate_object_id
+ *   Object ID of the selected rate from among the Shipment response rates from
+ *   Shippo.
+ * @return $transaction
+ *   Decoded Transaction object returned by Shippo.
+ */
+function shippo_create_shipment_transaction($rate_object_id) {
+  try {
+    $transaction = Shippo_Transaction::create(
+      array(
+        'rate' => $rate_object_id,
+        'label_file_type' => "PDF",
+        'async' => false,
+      )
+    );
+  }
+  catch (Shippo_ApiConnectionError $e) {
+    drupal_set_message(t('Unable to connect to Shippo shipment services provider. Please try again.'), 'error', FALSE);
+    watchdog('shippo', t('Unable to connect to Shippo while attempting to create Shippo Transaction Object.'), array(), WATCHDOG_ERROR);
+    return FALSE;
+  }
+
+  $transaction = json_decode($transaction);
+  return $transaction;
+}
+
+/**
+ * Helper function to get post shipping rate purchase shipment data e.g.
+ * shipping label(s) url, tracking url, etc.
+ *
+ * @param $master_transaction
+ *   The transaction object corresponding to the master (first) parcel involved
+ *   in the shipment.
+ * @param $package_count
+ *   The number of packages involved in the shipment.
+ * @param $rate_object_id
+ *   Object ID of the selected rate from among the Shipment response rates from
+ *   Shippo.
+ * @return $shipment_line_item_data
+ *   Return post-purchase shipment data.
+ */
+function shippo_get_post_purchase_shipping_info($master_transaction, $package_count, $rate_object_id) {
+
+  if($master_transaction->object_status === 'SUCCESS') {
+
+    if ($package_count > 1) {
+      $transactions = Shippo_Transaction::all(
+        array(
+          'rate' => $rate_object_id,
+        )
+      );
+
+      $transactions = json_decode($transactions);
+      $slave_transactions = array();
+      $slave_tracking_numbers = array();
+      $slave_tracking_urls = array();
+      $slave_label_urls = array();
+
+      foreach ($transactions->results as $transaction) {
+
+        if ($transaction->object_status !== 'SUCCESS') {
+          drupal_set_message(t('There was a problem processing a Shipment transaction. Please contact the site administrator.'), 'error', FALSE);
+          $failure_messages = array();
+
+          foreach ($transaction->messages as $message) {
+            $failure_messages[] = $message->text;
+          }
+
+          $failure_messages = implode("\n", $failure_messages);
+          watchdog('shippo', $failure_messages, array(), WATCHDOG_ERROR);
+          return FALSE;
+        }
+
+        if ($transaction->tracking_number !== $master_transaction->tracking_number) {
+          $slave_transactions[] = $transaction;
+          $slave_tracking_numbers[] = $transaction->tracking_number;
+          $slave_tracking_urls[] = $transaction->tracking_url_provider;
+          $slave_label_urls[] = $transaction->label_url;
+        }
+
+      }
+
+    }
+
+    // Populate post-purchase data to be stored with the shipping line item.
+    $shipment_line_item_data = array(
+      'master_tracking_number' => $master_transaction->tracking_number,
+      'master_tracking_url' => $master_transaction->tracking_url_provider,
+      'master_label_url' => $master_transaction->label_url,
+    );
+
+    if (!empty($slave_transactions)) {
+      $shipment_line_item_data['slave_tracking_numbers'] = $slave_tracking_numbers;
+      $shipment_line_item_data['slave_tracking_urls'] = $slave_tracking_urls;
+      $shipment_line_item_data['slave_label_urls'] = $slave_label_urls;
+    }
+
+    if (!empty($master_transaction->commercial_invoice_url)) {
+      $shipment_line_item_data['commercial_invoice_url'] = $master_transaction->commercial_invoice_url;
+    }
+
+  }
+  else {
+    drupal_set_message(t('There was a problem processing a Shipment transaction. Please contact the site administrator.'), 'error', FALSE);
+    $failure_messages = array();
+
+    foreach ($master_transaction->messages as $message) {
+      $failure_messages[] = $message->text;
+    }
+
+    $failure_messages = implode("\n", $failure_messages);
+    watchdog('shippo', $failure_messages, array(), WATCHDOG_ERROR);
+    return FALSE;
+  }
+
+  return $shipment_line_item_data;
 }
 
 /**

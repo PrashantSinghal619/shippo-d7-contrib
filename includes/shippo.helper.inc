@@ -332,6 +332,16 @@ function shippo_carrier_services($carriers = array()) {
 }
 
 /**
+ * Returns the carrier service key for the corresponding service name.
+ */
+function shippo_carrier_service_key($service) {
+
+  $service = str_replace('shippo_', '', $service);
+  $service_key = array_search($service, shippo_carrier_service_names());
+  return $service_key;
+}
+
+/**
  * Loads all enabled Shippo shipping services from the database.
  */
 function shippo_load_services() {
