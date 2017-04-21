@@ -81,6 +81,14 @@ function shippo_request_quote_rates($order) {
     return FALSE;
   }
 
+  $context = array(
+    'shipfrom_address' => $shipfrom_address,
+    'shipto_address' => $shipto_address,
+    'parcel_array' => $parcel_array,
+    'customs_declaration' => $customs_declaration,
+  );
+  // Allow other modules to make changes to shipping quote rate response.
+  drupal_alter('shippo_request_quote_rates', $shipping_quote_rate_response, $order, $context);
   return $shipping_quote_rate_response;
 }
 
@@ -203,6 +211,8 @@ function shippo_prepare_shipping_address($order) {
     }
   }
 
+  // Allow other modules to alter the construction of receiver shipping address.
+  drupal_alter('shippo_prepare_shipping_address', $shipping_address, $order);
   return $shipping_address;
 }
 
@@ -295,6 +305,15 @@ function shippo_get_parcel_info($order) {
     );
   }
 
+  $context = array(
+    'default_package_length' => $default_package_length,
+    'default_package_width' => $default_package_width,
+    'default_package_height' => $default_package_height,
+    'order_weight' => $weight,
+    'order_volume' => $volume,
+  );
+  // Allow other modules to modify the shipments parcel info.
+  drupal_alter('shippo_get_parcel_info', $parcels, $order, $context);
   return $parcels;
 }
 
@@ -328,6 +347,8 @@ function shippo_get_customs_info($order) {
     }
   }
 
+  // Allow other modules to modify the customs items array.
+  drupal_alter('shippo_get_customs_info', $customs_items, $order);
   return $customs_items;
 }
 
