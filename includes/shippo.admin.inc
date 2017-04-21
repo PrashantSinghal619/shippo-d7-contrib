@@ -10,7 +10,6 @@ module_load_include('inc', 'shippo', 'shippo.helper');
  * Shippo admin configuration form.
  */
 function shippo_settings_form($form, &$form_state) {
-  $goshippo_link = l(t('goShippo.com'), 'https://app.goshippo.com/api', array('attributes' => array('target' => '_blank')));
 
   // Shippo API related configuration.
   $form['api'] = array(
@@ -21,7 +20,7 @@ function shippo_settings_form($form, &$form_state) {
   $form['api']['shippo_api_token'] = array(
     '#type' => 'textfield',
     '#title' => t('Shippo API Token'),
-    '#description' => t('Enter the API live token associated with your account on !goshippo. You can feed in the test token here for testing purposes.', array('!goshippo' => $goshippo_link)),
+    '#description' => t('Enter the API live token associated with your account on <a href="@goshippo" target="_blank">goShippo.com</a>. You can feed in the test token here for testing purposes.', array('@goshippo' => 'https://app.goshippo.com/api')),
     '#default_value' => variable_get('shippo_api_token'),
     '#required' => TRUE,
   );
@@ -172,7 +171,7 @@ function shippo_settings_form($form, &$form_state) {
       complex logic involving multiple package sizes, weights, and void space can be implemented via
       custom modules.
       <br/><br/>
-      Shippo has a maximum package size similar to that of ' . l('UPS', 'http://www.ups.com/content/us/en/resources/prepare/oversize.html', array('attributes' => array('target' => '_blank'))) . '.',
+      Shippo has a maximum package size similar to that of ' . l(t('UPS'), 'http://www.ups.com/content/us/en/resources/prepare/oversize.html', array('attributes' => array('target' => '_blank'))) . '.',
   );
 
   // Shipping service options.

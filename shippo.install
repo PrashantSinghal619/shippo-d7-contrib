@@ -1,6 +1,12 @@
 <?php
 
 /**
+ * @file
+ * Contains hooks necessary to be invoked during Shippo module's
+ * installation/uninstallation.
+ */
+
+/**
  * Implements hook_schema().
  */
 function shippo_schema() {

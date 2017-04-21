@@ -52,7 +52,7 @@ function shippo_request_quote_rates($order) {
   $parcel_array = shippo_get_parcel_info($order);
   if (!$parcel_array) {
     drupal_set_message(t('The number of packages could not be computed.'), 'error', FALSE);
-    watchdog('shippo', t('The number of packages could not be computed.'), array(), WATCHDOG_ERROR);
+    watchdog('shippo', 'The number of packages could not be computed.', array(), WATCHDOG_ERROR);
     return FALSE;
   }
 
@@ -74,7 +74,7 @@ function shippo_request_quote_rates($order) {
 
   if (empty((array) $shipping_quote_rate_response)) {
     drupal_set_message(t('Either you have entered incorrect/incomplete shipping address or there are no carriers available that ship to your address.'), 'error', FALSE);
-    watchdog('shippo', t('Either shipping address validation failed or none of the available carriers ship to the provided customer address.'), array(), WATCHDOG_ERROR);
+    watchdog('shippo', 'Either shipping address validation failed or none of the available carriers ship to the provided customer address.', array(), WATCHDOG_ERROR);
     return FALSE;
   }
   if (!$shipping_quote_rate_response) {
@@ -124,7 +124,7 @@ function shippo_purchase_shipping_rate($order) {
   $parcel_array = shippo_get_parcel_info($order);
   if (!$parcel_array) {
     drupal_set_message(t('The number of packages could not be computed.'), 'error', FALSE);
-    watchdog('shippo', t('The number of packages could not be computed.'), array(), WATCHDOG_ERROR);
+    watchdog('shippo', 'The number of packages could not be computed.', array(), WATCHDOG_ERROR);
     return FALSE;
   }
 
@@ -146,7 +146,7 @@ function shippo_purchase_shipping_rate($order) {
 
   if (empty((array) $shipping_purchase_rate_response)) {
     drupal_set_message(t('Either you have entered incorrect/incomplete shipping address or there are no carriers available that ship to your address.'), 'error', FALSE);
-    watchdog('shippo', t('Either shipping address validation failed or none of the available carriers ship to the provided customer address.'), array(), WATCHDOG_ERROR);
+    watchdog('shippo', 'Either shipping address validation failed or none of the available carriers ship to the provided customer address.', array(), WATCHDOG_ERROR);
     return FALSE;
   }
   if (!$shipping_purchase_rate_response) {
@@ -221,8 +221,8 @@ function shippo_prepare_shipping_address($order) {
  * address to be sent in Shippo rate request.
 */
 function get_sender_address($purpose) {
-  $fromAddress = array();
-  $fromAddress = array(
+  $from_address = array();
+  $from_address = array(
     'object_purpose' => $purpose,
     'name' => variable_get('site_name'),
     'street1' => variable_get('shippo_sender_address_line_1'),
@@ -235,7 +235,7 @@ function get_sender_address($purpose) {
     'email' => variable_get('site_mail'),
   );
 
-  return $fromAddress;
+  return $from_address;
 }
 
 /**
@@ -243,8 +243,8 @@ function get_sender_address($purpose) {
  * address to be sent in Shippo rate request.
 */
 function get_receiver_address($purpose, $customer_shipping_address, $customer_email) {
-  $toAddress = array();
-  $toAddress = array(
+  $to_address = array();
+  $to_address = array(
     'object_purpose' => $purpose,
     'name' => $customer_shipping_address['name_line'],
     'street1' => $customer_shipping_address['thoroughfare'],
@@ -257,7 +257,7 @@ function get_receiver_address($purpose, $customer_shipping_address, $customer_em
     'email' => $customer_email,
   );
 
-  return $toAddress;
+  return $to_address;
 }
 
 /**
@@ -375,7 +375,7 @@ function shippo_declare_customs($shipfrom_address, $order) {
   }
   catch (Shippo_ApiConnectionError $e) {
     drupal_set_message(t('Unable to connect to Shippo shipment services provider. Please try again.'), 'error', FALSE);
-    watchdog('shippo', t('Unable to connect to Shippo while attempting to create Shippo Customs Declaration Object.'), array(), WATCHDOG_ERROR);
+    watchdog('shippo', 'Unable to connect to Shippo while attempting to create Shippo Customs Declaration Object.', array(), WATCHDOG_ERROR);
     return FALSE;
   }
 
@@ -397,13 +397,13 @@ function shippo_create_shipment_transaction($rate_object_id) {
       array(
         'rate' => $rate_object_id,
         'label_file_type' => "PDF",
-        'async' => false,
+        'async' => FALSE,
       )
     );
   }
   catch (Shippo_ApiConnectionError $e) {
     drupal_set_message(t('Unable to connect to Shippo shipment services provider. Please try again.'), 'error', FALSE);
-    watchdog('shippo', t('Unable to connect to Shippo while attempting to create Shippo Transaction Object.'), array(), WATCHDOG_ERROR);
+    watchdog('shippo', 'Unable to connect to Shippo while attempting to create Shippo Transaction Object.', array(), WATCHDOG_ERROR);
     return FALSE;
   }
 
@@ -428,7 +428,7 @@ function shippo_create_shipment_transaction($rate_object_id) {
  */
 function shippo_get_post_purchase_shipping_info($master_transaction, $package_count, $rate_object_id) {
 
-  if($master_transaction->object_status === 'SUCCESS') {
+  if ($master_transaction->object_status === 'SUCCESS') {
 
     if ($package_count > 1) {
       $transactions = Shippo_Transaction::all(
@@ -522,13 +522,13 @@ function shippo_get_post_purchase_shipping_info($master_transaction, $package_co
  *   rates and a pre-requisite for creating a transaction to generate a shipment
  *   label.
  */
-function retrieve_shipment_rates($purpose, $fromAddress, $toAddress, $parcel, $customs) {
+function retrieve_shipment_rates($purpose, $from_address, $to_address, $parcel, $customs) {
   $shipment_input_info = array(
     'object_purpose' => $purpose,
-    'address_from' => $fromAddress,
-    'address_to' => $toAddress,
+    'address_from' => $from_address,
+    'address_to' => $to_address,
     'parcel' => $parcel,
-    'async' => false,
+    'async' => FALSE,
   );
 
   // Declare customs for international shipments.
