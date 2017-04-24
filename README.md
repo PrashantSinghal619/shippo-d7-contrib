@@ -1,7 +1,7 @@
 ### About this module ###
 
 Shippo module for Drupal 7 provides real-time shipping cost estimates for
-various shipemnt carriers e.g. UPS, USPS, DHL Express, Canada Post, FedEx, etc.
+various shipment carriers e.g. UPS, USPS, DHL Express, Canada Post, FedEx, etc.
 and shipping label creation along with tracking information functionality.
 Version: 1.0
 Drupal core version: 7.x
