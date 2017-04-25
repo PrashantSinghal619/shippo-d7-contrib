@@ -358,19 +358,19 @@ function shippo_load_services() {
 /**
  * Saves an enabled Shippo shipping service.
  *
- * @param $service
+ * @param array $service
  *   An array containing a 'name', 'title', and 'weight' of the service.
- * @param $update
+ * @param bool $update
  *   Boolean indicating whether or not the save should be processed as an update
  *   to an existing enabled service.
- * @param $skip_reset
+ * @param bool $skip_reset
  *   Boolean indicating whether or not the menu item cache and default rule
  *   configurations should be reset after the delete.
  *
- * @return
+ * @return bool|string
  *   The return value of the call to drupal_write_record() to save the txn type,
- *     either FALSE on failure or SAVED_NEW or SAVED_UPDATED indicating the type
- *     of query performed to save the txn type.
+ *   either FALSE on failure or SAVED_NEW or SAVED_UPDATED indicating the type
+ *   of query performed to save the txn type.
  */
 function shippo_save_service($service, $update = FALSE, $skip_reset = FALSE) {
   $op = drupal_write_record('shippo_service', $service, $update ? array('name') : array());
@@ -390,9 +390,9 @@ function shippo_save_service($service, $update = FALSE, $skip_reset = FALSE) {
 /**
  * Disables an enabled Shippo shipping service by deleting its database row.
  *
- * @param $name
+ * @param string $name
  *   The name of the package service to delete.
- * @param $skip_reset
+ * @param bool $skip_reset
  *   Boolean indicating whether or not the menu item cache and default rule
  *   configurations should be reset after the delete.
  */

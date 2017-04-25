@@ -4,6 +4,7 @@
  * @file
  * Handles admin settings page for Shippo module.
  */
+
 module_load_include('inc', 'shippo', 'shippo.helper');
 
 /**
@@ -210,7 +211,7 @@ function shippo_config_form_ajax_callback($form, $form_state) {
   return $form['origin']['shippo_sender_state'];
 }
 
-/*
+/**
  * Implements hook_form_validate().
  */
 function shippo_settings_form_validate($form, &$form_state) {
@@ -222,15 +223,17 @@ function shippo_settings_form_validate($form, &$form_state) {
   }
 
   // Ensure the default package size is less than the maximum permissible size.
-  //  Length (longest side) <= 108 inches
-  //  Girth = 2*width + 2*height
-  //  Length + Girth <= 165 inches
-  $dimensions = array($values['shippo_default_package_size_length'],
-                      $values['shippo_default_package_size_width'],
-                      $values['shippo_default_package_size_height']);
+  // - Length (longest side) <= 108 (inches)
+  // - Girth = (2*width + 2*height)
+  // - Length + Girth <= 165 (inches)
+  $dimensions = array(
+    $values['shippo_default_package_size_length'],
+    $values['shippo_default_package_size_width'],
+    $values['shippo_default_package_size_height'],
+  );
   sort($dimensions);
   list($height, $width, $length) = $dimensions;
-  $girth = 2*$width + 2*$height;
+  $girth = 2 * $width + 2 * $height;
   if ($length > 108) {
     form_set_error('shippo_default_package_size_length', t('The greatest dimension of the package size must be 108 inches or less.'));
   }
@@ -261,8 +264,8 @@ function shippo_settings_form_submit($form, &$form_state) {
   );
 
   foreach ($fields as $key) {
-    if (array_key_exists($key, $form_state['input'])) {
-      $value = $form_state['input'][$key];
+    if (array_key_exists($key, $form_state['values'])) {
+      $value = $form_state['values'][$key];
       variable_set($key, $value);
     }
   }

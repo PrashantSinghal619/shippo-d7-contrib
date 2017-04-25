@@ -4,7 +4,8 @@
  * @file
  * Handles requests to Shippo server for Shippo module.
  */
-require_once(libraries_get_path('shippo-php-client') . '/lib/Shippo.php');
+
+require_once libraries_get_path('shippo-php-client') . '/lib/Shippo.php';
 module_load_include('inc', 'shippo', 'shippo.helper');
 
 /**
@@ -44,10 +45,10 @@ function shippo_request_quote_rates($order) {
   }
 
   $order_customer_email = $order->mail;
-  $shipto_address = get_receiver_address($purpose, $shipping_address, $order_customer_email);
+  $shipto_address = shippo_get_receiver_address($purpose, $shipping_address, $order_customer_email);
 
   // Ship From - Sender Address.
-  $shipfrom_address = get_sender_address($purpose);
+  $shipfrom_address = shippo_get_sender_address($purpose);
 
   $parcel_array = shippo_get_parcel_info($order);
   if (!$parcel_array) {
@@ -70,7 +71,7 @@ function shippo_request_quote_rates($order) {
   }
 
   // Fetch shipment rates for the selected services.
-  $shipping_quote_rate_response = retrieve_shipment_rates($purpose, $shipfrom_address, $shipto_address, $parcel_array, $customs_declaration);
+  $shipping_quote_rate_response = shippo_retrieve_shipment_rates($purpose, $shipfrom_address, $shipto_address, $parcel_array, $customs_declaration);
 
   if (empty((array) $shipping_quote_rate_response)) {
     drupal_set_message(t('Either you have entered incorrect/incomplete shipping address or there are no carriers available that ship to your address.'), 'error', FALSE);
@@ -116,10 +117,10 @@ function shippo_purchase_shipping_rate($order) {
   }
 
   $order_customer_email = $order->mail;
-  $shipto_address = get_receiver_address($purpose, $shipping_address, $order_customer_email);
+  $shipto_address = shippo_get_receiver_address($purpose, $shipping_address, $order_customer_email);
 
   // Ship From - Sender Address.
-  $shipfrom_address = get_sender_address($purpose);
+  $shipfrom_address = shippo_get_sender_address($purpose);
 
   $parcel_array = shippo_get_parcel_info($order);
   if (!$parcel_array) {
@@ -142,7 +143,7 @@ function shippo_purchase_shipping_rate($order) {
   }
 
   // Fetch available shipment purchase rates.
-  $shipping_purchase_rate_response = retrieve_shipment_rates($purpose, $shipfrom_address, $shipto_address, $parcel_array, $customs_declaration);
+  $shipping_purchase_rate_response = shippo_retrieve_shipment_rates($purpose, $shipfrom_address, $shipto_address, $parcel_array, $customs_declaration);
 
   if (empty((array) $shipping_purchase_rate_response)) {
     drupal_set_message(t('Either you have entered incorrect/incomplete shipping address or there are no carriers available that ship to your address.'), 'error', FALSE);
@@ -160,7 +161,7 @@ function shippo_purchase_shipping_rate($order) {
       // Purchase the selected rate.
       $transaction = shippo_create_shipment_transaction($rate_object_id);
       // Retrieve info about the purchased shipment rate.
-      $purchase_shipment_data = shippo_get_post_purchase_shipping_info($transaction, sizeof($parcel_array), $rate_object_id);
+      $purchase_shipment_data = shippo_get_post_purchase_shipping_info($transaction, count($parcel_array), $rate_object_id);
     }
 
   }
@@ -219,8 +220,8 @@ function shippo_prepare_shipping_address($order) {
 /**
  * Helper function to return an array storing info about sender's (ship from)
  * address to be sent in Shippo rate request.
-*/
-function get_sender_address($purpose) {
+ */
+function shippo_get_sender_address($purpose) {
   $from_address = array();
   $from_address = array(
     'object_purpose' => $purpose,
@@ -241,8 +242,8 @@ function get_sender_address($purpose) {
 /**
  * Helper function to return an array storing info about receiver's (ship to)
  * address to be sent in Shippo rate request.
-*/
-function get_receiver_address($purpose, $customer_shipping_address, $customer_email) {
+ */
+function shippo_get_receiver_address($purpose, $customer_shipping_address, $customer_email) {
   $to_address = array();
   $to_address = array(
     'object_purpose' => $purpose,
@@ -294,7 +295,7 @@ function shippo_get_parcel_info($order) {
   $per_package_weight = $weight['weight'] / $package_count;
 
   // Based on package count, declare the parcels.
-  for ($i=0; $i < $package_count; $i++) {
+  for ($i = 0; $i < $package_count; $i++) {
     $parcels[$i] = array(
       'length' => $default_package_length,
       'width' => $default_package_width,
@@ -385,10 +386,12 @@ function shippo_declare_customs($shipfrom_address, $order) {
 /**
  * Helper function to create Shippo transaction object to purchase a shipment
  * rate.
- * @param $rate_object_id
+ *
+ * @param string $rate_object_id
  *   Object ID of the selected rate from among the Shipment response rates from
  *   Shippo.
- * @return $transaction
+ *
+ * @return
  *   Decoded Transaction object returned by Shippo.
  */
 function shippo_create_shipment_transaction($rate_object_id) {
@@ -415,15 +418,16 @@ function shippo_create_shipment_transaction($rate_object_id) {
  * Helper function to get post shipping rate purchase shipment data e.g.
  * shipping label(s) url, tracking url, etc.
  *
- * @param $master_transaction
+ * @param object $master_transaction
  *   The transaction object corresponding to the master (first) parcel involved
  *   in the shipment.
- * @param $package_count
+ * @param int $package_count
  *   The number of packages involved in the shipment.
- * @param $rate_object_id
+ * @param string $rate_object_id
  *   Object ID of the selected rate from among the Shipment response rates from
  *   Shippo.
- * @return $shipment_line_item_data
+ *
+ * @return
  *   Return post-purchase shipment data.
  */
 function shippo_get_post_purchase_shipping_info($master_transaction, $package_count, $rate_object_id) {
@@ -506,23 +510,23 @@ function shippo_get_post_purchase_shipping_info($master_transaction, $package_co
 /**
  * Helper function to retrieve shipping rates or create a live shipment.
  *
- * @param $purpose
+ * @param string $purpose
  *   The purpose for which shipment object is being created - QUOTE or PURCHASE.
- * @param $fromAddress
+ * @param array $from_address
  *   Sender merchant's warehouse address.
- * @param $toAddress
- *   Recepient user's address to which the order is to be shipped.
- * @param $parcel
+ * @param array $to_address
+ *   Recipient user's address to which the order is to be shipped.
+ * @param array $parcel
  *   Parcel item or an array of parcel items with dimensions.
- * @param $customs
+ * @param object $customs
  *   (optional) Declared customs item(s) info.
  *
- * @return $selected_rate
+ * @return
  *   The decoded rate object retrieved for Shippo containing info about shipment
  *   rates and a pre-requisite for creating a transaction to generate a shipment
  *   label.
  */
-function retrieve_shipment_rates($purpose, $from_address, $to_address, $parcel, $customs) {
+function shippo_retrieve_shipment_rates($purpose, $from_address, $to_address, $parcel, $customs) {
   $shipment_input_info = array(
     'object_purpose' => $purpose,
     'address_from' => $from_address,

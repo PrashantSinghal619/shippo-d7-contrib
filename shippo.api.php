@@ -1,6 +1,6 @@
 <?php
 
-/*
+/**
  * @file
  * Provides various hooks for other modules to modify Shippo module's
  * functionality.
@@ -8,6 +8,7 @@
 
 /**
  * Allow alterations to shipping quote rate response from Shippo.
+ *
  * @param json $shipping_quote_rate_response
  *   Serialised data response from Shippo on quote rate request. Alterable.
  * @param object $order
@@ -27,6 +28,7 @@ function hook_shippo_request_quote_rates_alter(&$shipping_quote_rate_response, $
 
 /**
  * Allow alterations to the construction of receiver's shipping address.
+ *
  * @param array $shipping_address
  *   In context customer/receiver's shipping address. Alterable.
  * @param object $order
@@ -39,6 +41,7 @@ function hook_shippo_prepare_shipping_address_alter(&$shipping_address, $order) 
 /**
  * Allow alterations to parcels array storing information about parcel(s)
  * involved in the shipment.
+ *
  * @param array $parcels
  *   Array containing information about parcel(s) involved in the shipment.
  * @param object $order
@@ -59,6 +62,7 @@ function hook_shippo_get_parcel_info_alter(&$parcels, $order, $context) {
 /**
  * Allow alterations to the customs items array storing information about the
  * customs items involved in the shipment.
+ *
  * @param array $customs_items
  *   Array containing information about the customs items involved in shipment.
  * @param object $order

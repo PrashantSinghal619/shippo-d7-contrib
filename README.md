@@ -25,6 +25,9 @@ Drupal core version: 7.x
   to better understand the Shippo workflow, features and precautions. Also,
   you can better understand which carrier services would be apt for your
   marketplace at https://support.goshippo.com/hc/en-us/categories/200384565-Carriers.
+  - Shippo API requires a secure site that uses HTTPS protocol to allow
+  communication to Shippo server. Ensure that you install necessary certificates
+  to make your site secure before proceeding to use this module.
 
 
 2. **Setup**

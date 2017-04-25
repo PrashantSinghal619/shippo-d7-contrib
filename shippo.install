@@ -2,8 +2,7 @@
 
 /**
  * @file
- * Contains hooks necessary to be invoked during Shippo module's
- * installation/uninstallation.
+ * Contains Shippo module's installation/uninstallation related hooks.
  */
 
 /**

@@ -1,6 +1,6 @@
 <?php
 
-/*
+/**
  * @file
  * Handles main functionality for Shippo module.
  */
@@ -43,7 +43,6 @@ function shippo_commerce_shipping_method_info() {
  */
 function shippo_commerce_shipping_service_info() {
   $shipping_services = array();
-  $service_names = shippo_carrier_service_names();
 
   foreach (shippo_load_services() as $name => $service) {
     $shipping_services[shippo_commerce_shipping_service_name($name)] = array(
@@ -111,7 +110,7 @@ function shippo_service_rate_order($shipping_service, $order) {
 }
 
 /**
- * Implements hook_form_FORM_ID_alter.
+ * Implements hook_form_FORM_ID_alter().
  * Alter the Shipping information customer profile section of the checkout
  * form to require the phone field in order to avoid shipment handling problems
  * (especially in case of international shipments).
@@ -131,7 +130,8 @@ function shippo_form_commerce_checkout_form_checkout_alter(&$form, &$form_state)
 }
 
 /**
- * Implements hook_form_FORM_ID_alter.
+ * Implements hook_form_FORM_ID_alter().
+ * Add validation handler to checkout review form.
  */
 function shippo_form_commerce_checkout_form_review_alter(&$form, &$form_state) {
   $form['buttons']['continue']['#validate'][] = 'shippo_commerce_checkout_review_validate';
@@ -163,9 +163,10 @@ function shippo_commerce_checkout_review_validate($form, &$form_state) {
 /**
  * Retrieve shipment's master (first) parcel's info. In single-piece shipments,
  * the only parcel is the master parcel.
- * @param $order
+ *
+ * @param object $order
  *   The order in context.
- * @param $property
+ * @param string $property
  *   (optional) The type of shipment info to be retrieved. Possible values:
  *   - master_tracking_number: Master parcel tracking number.
  *   - master_tracking_url: Link to master parcel's tracking.
@@ -196,9 +197,10 @@ function shippo_retrieve_shipment_master_parcel_info($order, $property = NULL) {
 /**
  * Retrieve shipment's slave (all other than master) parcel(s) info.
  * In single-piece shipments, the only parcel is the master parcel.
- * @param $order
+ *
+ * @param object $order
  *   The order in context.
- * @param $property
+ * @param string $property
  *   (optional) The type of shipment info to be retrieved. Possible values:
  *   - slave_tracking_numbers: Slave parcel tracking number.
  *   - slave_tracking_urls: Link to slave parcel's tracking.
