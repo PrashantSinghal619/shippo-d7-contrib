@@ -6,6 +6,18 @@ and shipping label creation along with tracking information functionality.
 Version: 1.0
 Drupal core version: 7.x
 
+### Supported Shippo APIs ###
+
+This module supports the following Shippo API resources:
+
+  1. Addresses - https://goshippo.com/docs/reference/php#addresses
+  2. Parcels - https://goshippo.com/docs/reference/php#parcels
+  3. Shipments - https://goshippo.com/docs/reference/php#shipments
+  4. Rates - https://goshippo.com/docs/reference/php#rates
+  5. Transactions - https://goshippo.com/docs/reference/php#transactions
+  6. Customs Items - https://goshippo.com/docs/reference/php#customs-items
+  7. Customs Declaration - https://goshippo.com/docs/reference/php#customs-declarations
+
 ### How do I get set up? ###
 
 1. **Pre-requisites**
